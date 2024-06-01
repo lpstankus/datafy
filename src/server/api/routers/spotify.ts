@@ -90,6 +90,25 @@ const spotifyTrackObject = z.object({
   is_local: z.boolean().optional(),
 });
 
+type ArtistData = {
+  spotify_id: string;
+  name: string;
+  genres: string[];
+  popularity: number;
+  followers: number;
+};
+
+type TrackData = {
+  spotify_id: string;
+  track_name: string;
+  explicit: boolean;
+  popularity: number;
+  album_name: string;
+  release_year: number;
+  genres: string[];
+  artists: string[];
+};
+
 const selectAccountSchema = createSelectSchema(accounts);
 type Account = z.infer<typeof selectAccountSchema>;
 type SpotifyTrackObject = z.infer<typeof spotifyTrackObject>;
@@ -122,6 +141,56 @@ async function fetchTopTracks(account: Account): Promise<SpotifyTrackObject[]> {
   }
 }
 
+function transformSpotifyResponse(data: SpotifyTrackObject[]): {
+  artist_data: ArtistData[];
+  track_data: TrackData[];
+} {
+  var artist_map = new Map<string, ArtistData>();
+  var track_map = new Map<string, TrackData>();
+
+  for (const track of data) {
+    if (!track.id) continue;
+
+    const track_artists = [];
+
+    var genres_set = new Set<string>();
+    for (const artist of track.artists || []) {
+      artist.genres?.forEach((genre) => genres_set.add(genre));
+
+      if (artist.id) {
+        const artist_obj: ArtistData = {
+          spotify_id: artist.id,
+          name: artist.name || "Unknown",
+          genres: artist.genres || [],
+          popularity: artist.popularity || 0,
+          followers: artist.followers?.total || 0,
+        };
+
+        artist_map.set(artist_obj.spotify_id, artist_obj);
+        track_artists.push(artist_obj);
+      }
+    }
+
+    const track_obj: TrackData = {
+      track_name: track.name || "Untitled",
+      spotify_id: track.id,
+      album_name: track.album?.name || "Untitled",
+      artists: track_artists.map((artist) => artist.spotify_id),
+      release_year: parseInt(track.album?.release_date.split("-")[0] || "0"),
+      explicit: track.explicit || false,
+      popularity: track.popularity || 0,
+      genres: Array.from(genres_set),
+    };
+
+    track_map.set(track_obj.spotify_id, track_obj);
+  }
+
+  return {
+    artist_data: Array.from(artist_map.values()),
+    track_data: Array.from(track_map.values()),
+  };
+}
+
 export const spotifyRouter = createTRPCRouter({
   getAccount: publicProcedure
     .input(z.object({ user: z.string() }))
@@ -132,5 +201,12 @@ export const spotifyRouter = createTRPCRouter({
           eq(accounts.provider, "spotify"),
         ),
       });
+    }),
+
+  retrieveMostPlayed: publicProcedure
+    .input(selectAccountSchema)
+    .query(async ({ input: account }) => {
+      const track_list = await fetchTopTracks(account);
+      return transformSpotifyResponse(track_list);
     }),
 });
