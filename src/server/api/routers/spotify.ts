@@ -154,42 +154,106 @@ async function fetchTopTracks(account: Account): Promise<SpotifyTrackObject[]> {
   }
 }
 
-function transformSpotifyResponse(data: SpotifyTrackObject[]): {
+async function fetchArtistData(
+  account: Account,
+  artist_list: string[],
+): Promise<SpotifyArtistObject[]> {
+  var batches: string[] = [];
+  artist_list.forEach((id, idx) => {
+    if (idx % 50 == 0) {
+      batches.push(`${id}`);
+    } else {
+      batches[batches.length - 1] += `,${id}`;
+    }
+  });
+
+  var artist_data: SpotifyArtistObject[] = [];
+  try {
+    for (const batch of batches) {
+      const response = await fetch(
+        "https://api.spotify.com/v1/artists?" +
+          new URLSearchParams({
+            ids: batch,
+          }),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        },
+      );
+
+      const json = await response.json();
+      if (!response.ok) throw json;
+
+      const response_array = z.array(spotifyArtistObject).parse(json.artists);
+      artist_data = artist_data.concat(response_array);
+    }
+    return artist_data;
+  } catch (error) {
+    console.error("Error requesting artists data", error);
+    return artist_data;
+  }
+}
+
+function getArtistIds(data: SpotifyTrackObject[]): string[] {
+  const artist_ids = new Set<string>();
+  for (const track of data) {
+    if (!track.id) continue;
+    for (const artist of track.artists || []) {
+      if (artist.id) artist_ids.add(artist.id);
+    }
+  }
+  return Array.from(artist_ids.values());
+}
+
+async function transformSpotifyResponse(
+  account: Account,
+  track_data: SpotifyTrackObject[],
+): Promise<{
   artist_data: ArtistData[];
   track_data: TrackData[];
-} {
+}> {
   var artist_map = new Map<string, ArtistData>();
   var track_map = new Map<string, TrackData>();
 
-  for (const track of data) {
+  const artist_ids = getArtistIds(track_data);
+  const artist_data = await fetchArtistData(account, artist_ids);
+
+  for (const artist of artist_data) {
+    if (!artist.id) continue;
+
+    const artist_obj: ArtistData = {
+      spotify_id: artist.id,
+      name: artist.name || "Unknown",
+      genres: artist.genres || [],
+      popularity: artist.popularity || 0,
+      followers: artist.followers?.total || 0,
+    };
+
+    artist_map.set(artist_obj.spotify_id, artist_obj);
+  }
+
+  for (const track of track_data) {
     if (!track.id) continue;
 
-    const track_artists = [];
+    var track_artist_ids: string[] = [];
 
     var genres_set = new Set<string>();
     for (const artist of track.artists || []) {
-      artist.genres?.forEach((genre) => genres_set.add(genre));
-
-      if (artist.id) {
-        const artist_obj: ArtistData = {
-          spotify_id: artist.id,
-          name: artist.name || "Unknown",
-          genres: artist.genres || [],
-          popularity: artist.popularity || 0,
-          followers: artist.followers?.total || 0,
-        };
-
-        artist_map.set(artist_obj.spotify_id, artist_obj);
-        track_artists.push(artist_obj);
-      }
+      if (!artist.id) continue;
+      track_artist_ids.push(artist.id);
+      const genres = artist_map.get(artist.id)?.genres;
+      for (const genre of genres || []) genres_set.add(genre);
     }
 
     const track_obj: TrackData = {
       track_name: track.name || "Untitled",
       spotify_id: track.id,
       album_name: track.album?.name || "Untitled",
-      artists: track_artists.map((artist) => artist.spotify_id),
       release_year: parseInt(track.album?.release_date.split("-")[0] || "0"),
+      artists: track_artist_ids,
       explicit: track.explicit || false,
       popularity: track.popularity || 0,
       genres: Array.from(genres_set),
@@ -219,7 +283,7 @@ export const spotifyRouter = createTRPCRouter({
   retrieveMostPlayed: publicProcedure
     .input(selectAccountSchema)
     .query(async ({ input: account }) => {
-      const track_list = await fetchTopTracks(account);
-      return transformSpotifyResponse(track_list);
+      const track_data = await fetchTopTracks(account);
+      return await transformSpotifyResponse(account, track_data);
     }),
 });
