@@ -51,7 +51,7 @@ export const authOptions: NextAuthOptions = {
         !spotifyAccount?.refresh_token ||
         !spotifyAccount?.scope
       ) {
-        return newSession;
+        throw "invalid Spotify account";
       }
 
       if (spotifyAccount.expires_at * 1000 < Date.now()) {
@@ -94,8 +94,7 @@ export const authOptions: NextAuthOptions = {
               ),
             );
         } catch (error) {
-          console.error("Error refreshing access token", error);
-          session.error = "RefreshAccessTokenError";
+          console.error("Error refreshing access token:", error);
         }
       }
 
