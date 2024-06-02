@@ -5,7 +5,8 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { accounts } from "~/server/db/schema";
 import { eq, and } from "drizzle-orm";
 
-const TRACKLIST_LIMIT = 5;
+const ITEM_TARG = 100;
+const MAX_REQUEST_ITEMS = 50;
 
 const spotifyImageObject = z.object({
   url: z.string(),
@@ -114,30 +115,42 @@ type Account = z.infer<typeof selectAccountSchema>;
 type SpotifyTrackObject = z.infer<typeof spotifyTrackObject>;
 
 async function fetchTopTracks(account: Account): Promise<SpotifyTrackObject[]> {
+  var track_data: SpotifyTrackObject[] = [];
   try {
-    const response = await fetch(
-      "https://api.spotify.com/v1/me/top/tracks?" +
-        new URLSearchParams({
-          time_raunge: "short_term",
-          limit: `${TRACKLIST_LIMIT}`,
-          offset: "0",
-        }),
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${account.access_token}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+    for (
+      var start = 0, len = Math.min(MAX_REQUEST_ITEMS, ITEM_TARG);
+      start < ITEM_TARG;
+      start += len, len = Math.min(ITEM_TARG - start, MAX_REQUEST_ITEMS)
+    ) {
+      const response = await fetch(
+        "https://api.spotify.com/v1/me/top/tracks?" +
+          new URLSearchParams({
+            time_raunge: "short_term",
+            limit: `${len}`,
+            offset: `${start}`,
+          }),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
         },
-      },
-    );
+      );
 
-    const json = await response.json();
-    if (!response.ok) throw json;
+      const json = await response.json();
+      if (!response.ok) throw json;
 
-    return z.array(spotifyTrackObject).parse(json.items) || [];
+      const response_array = z.array(spotifyTrackObject).parse(json.items);
+      track_data = track_data.concat(response_array);
+    }
+    return track_data;
   } catch (error) {
-    console.error("Error requesting most played songs", error);
-    return [];
+    console.error("Error requesting most played songs:", error);
+    console.error(
+      `Got ${track_data.length} tracks out of ${ITEM_TARG} requested`,
+    );
+    return track_data;
   }
 }
 
