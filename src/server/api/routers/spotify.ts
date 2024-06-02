@@ -14,6 +14,24 @@ const spotifyImageObject = z.object({
   width: z.number().nullable(),
 });
 
+const spotifyArtistObject = z.object({
+  external_urls: z.object({ spotify: z.string().optional() }).optional(),
+  followers: z
+    .object({
+      href: z.string().nullable().optional(),
+      total: z.number().optional(),
+    })
+    .optional(),
+  genres: z.array(z.string()).optional(),
+  href: z.string().optional(),
+  id: z.string().optional(),
+  images: z.array(spotifyImageObject).optional(),
+  name: z.string().optional(),
+  popularity: z.number().optional(),
+  type: z.string().optional(),
+  uri: z.string().optional(),
+});
+
 const spotifyTrackObject = z.object({
   album: z
     .object({
@@ -44,27 +62,7 @@ const spotifyTrackObject = z.object({
       ),
     })
     .optional(),
-  artists: z
-    .array(
-      z.object({
-        external_urls: z.object({ spotify: z.string() }).optional(),
-        followers: z
-          .object({
-            href: z.string().nullable().optional(),
-            total: z.number().optional(),
-          })
-          .optional(),
-        genres: z.array(z.string()).optional(),
-        href: z.string().optional(),
-        id: z.string().optional(),
-        images: z.array(spotifyImageObject).optional(),
-        name: z.string().optional(),
-        popularity: z.number().optional(),
-        type: z.string().optional(),
-        uri: z.string().optional(),
-      }),
-    )
-    .optional(),
+  artists: z.array(spotifyArtistObject).optional(),
   available_markets: z.array(z.string()).optional(),
   disc_number: z.number().optional(),
   duration_ms: z.number().optional(),
@@ -112,7 +110,9 @@ type TrackData = {
 
 const selectAccountSchema = createSelectSchema(accounts);
 type Account = z.infer<typeof selectAccountSchema>;
+
 type SpotifyTrackObject = z.infer<typeof spotifyTrackObject>;
+type SpotifyArtistObject = z.infer<typeof spotifyArtistObject>;
 
 async function fetchTopTracks(account: Account): Promise<SpotifyTrackObject[]> {
   var track_data: SpotifyTrackObject[] = [];
