@@ -1,4 +1,4 @@
-import { spotifyRouter } from "~/server/api/routers/spotify";
+import { spotifyRouter } from "~/server/api/routers/spotify/router";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
