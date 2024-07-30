@@ -13,48 +13,35 @@ import { createTable, accounts } from "~/server/db/schema";
 
 import { eq, and } from "drizzle-orm";
 
-/**
- * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
- * object and keep type safety.
- *
- * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
- */
+const SPOTIFY_SCOPE = "user-read-email user-top-read";
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     error: string;
-    user: { id: string; name: string; image: string };
+    user: {
+      id: string;
+      name: string;
+      image: string;
+      spotify: {
+        accountId: string;
+        accessToken: string;
+      };
+    };
   }
 }
 
-/**
- * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
- *
- * @see https://next-auth.js.org/configuration/options
- */
 export const authOptions: NextAuthOptions = {
   callbacks: {
     session: async ({ session, user }) => {
-      const newSession = {
-        ...session,
-        user: { id: user.id, name: user.name, image: user.image },
-      };
-
-      const spotifyAccount = await db.query.accounts.findFirst({
+      const account = await db.query.accounts.findFirst({
         where: and(
           eq(accounts.provider, "spotify"),
           eq(accounts.userId, user.id),
         ),
       });
+      if (!account || !account.refresh_token) throw "Invalid Spotify account";
 
-      if (
-        !spotifyAccount?.expires_at ||
-        !spotifyAccount?.refresh_token ||
-        !spotifyAccount?.scope
-      ) {
-        throw "invalid Spotify account";
-      }
-
-      if (spotifyAccount.expires_at * 1000 < Date.now()) {
+      if (!account.expires_at || account.expires_at * 1000 < Date.now()) {
         try {
           const basicAuth = Buffer.from(
             `${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`,
@@ -71,8 +58,8 @@ export const authOptions: NextAuthOptions = {
               body: new URLSearchParams({
                 grant_type: "refresh_token",
                 client_id: env.SPOTIFY_CLIENT_ID,
-                refresh_token: spotifyAccount.refresh_token,
-                scope: spotifyAccount.scope,
+                refresh_token: account.refresh_token,
+                scope: SPOTIFY_SCOPE,
               }),
             },
           );
@@ -93,12 +80,25 @@ export const authOptions: NextAuthOptions = {
                 eq(accounts.userId, user.id),
               ),
             );
+
+          account.access_token = tokens.access_token;
         } catch (error) {
-          console.error("Error refreshing access token:", error);
+          throw `Error refreshing access token: ${error}`;
         }
       }
 
-      return newSession;
+      return {
+        ...session,
+        user: {
+          id: user.id,
+          name: user.name,
+          image: user.image,
+          spotify: {
+            accountId: account.providerAccountId,
+            accessToken: account.access_token,
+          },
+        },
+      };
     },
   },
   adapter: DrizzleAdapter(db, createTable) as Adapter,
@@ -106,23 +106,9 @@ export const authOptions: NextAuthOptions = {
     SpotifyProvider({
       clientId: env.SPOTIFY_CLIENT_ID,
       clientSecret: env.SPOTIFY_CLIENT_SECRET,
-      authorization: { params: { scope: "user-read-email user-top-read" } },
+      authorization: { params: { scope: SPOTIFY_SCOPE } },
     }),
-    /**
-     * ...add more providers here.
-     *
-     * Most other providers require a bit more work than the Discord provider. For example, the
-     * GitHub provider requires you to add the `refresh_token_expires_in` field to the Account
-     * model. Refer to the NextAuth.js docs for the provider you want to use. Example:
-     *
-     * @see https://next-auth.js.org/providers/github
-     */
   ],
 };
 
-/**
- * Wrapper for `getServerSession` so that you don't need to import the `authOptions` in every file.
- *
- * @see https://next-auth.js.org/configuration/nextjs
- */
 export const getServerAuthSession = () => getServerSession(authOptions);
