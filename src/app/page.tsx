@@ -1,5 +1,4 @@
 import Link from "next/link";
-
 import { getServerAuthSession } from "~/server/auth";
 import { api } from "~/trpc/server";
 
@@ -26,30 +25,41 @@ export default async function Home() {
           </div>
         </div>
 
-        <CrudShowcase />
+        <CrudShowcase/>
       </div>
     </main>
   );
 }
 
 async function CrudShowcase() {
-  const session = await getServerAuthSession();
-
-  const account = (session) ? await api.spotify.getAccount({ user: session.user.id }) : null;
-  console.log(account);
+  const trackList = await api.spotify.retrieveMostPlayed();
+  if (!trackList) return (
+    <div>
+      <p className="truncate">User not logged in...</p>
+    </div>
+  )
 
   return (
-    <div className="w-full max-w-xs">
-      {account ? (
-        <div>
-          <p className="truncate">access: {account.access_token}</p>
-          <p className="truncate">refresh: {account.refresh_token}</p>
-        </div>
-      ) : (
-        <div>
-          <p className="truncate">No account found...</p>
-        </div>
-      )}
+    <div className="w-full max-w-md">
+      <p className="font-bold">Artists:</p>
+      <div>
+        {trackList.artist_data.map((obj, _) =>
+          <div className="py-2">
+            <p className="truncate">{obj.name} ({obj.popularity}/100 - {obj.followers} followers)</p>
+            <p className="truncate">{obj.genres.join(", ")}</p>
+          </div>
+        )}
+      </div>
+
+      <p className="font-bold pt-10">Tracks:</p>
+      <div>
+        {trackList.track_data.map((obj, _) =>
+          <div className="py-2">
+            <p className="truncate">{obj.track_name} - {obj.album_name} ({obj.popularity}/100)</p>
+            <p className="truncate">{obj.genres.join(", ")}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
