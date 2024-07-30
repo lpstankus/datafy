@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { eq, and } from "drizzle-orm";
 
 import { createSelectSchema } from "drizzle-zod";
 import { accounts } from "~/server/db/schema";
@@ -44,7 +44,7 @@ function getArtistIds(data: TrackObject[]): string[] {
 }
 
 async function transformSpotifyResponse(
-  account: Account,
+  accessToken: string,
   track_data: TrackObject[],
 ): Promise<{
   artist_data: ArtistData[];
@@ -54,7 +54,7 @@ async function transformSpotifyResponse(
   var track_map = new Map<string, TrackData>();
 
   const artist_ids = getArtistIds(track_data);
-  const artist_data = await fetchArtistsData(account, artist_ids);
+  const artist_data = await fetchArtistsData(accessToken, artist_ids);
 
   for (const artist of artist_data) {
     if (!artist.id) continue;
@@ -104,21 +104,11 @@ async function transformSpotifyResponse(
 }
 
 export const spotifyRouter = createTRPCRouter({
-  getAccount: publicProcedure
-    .input(z.object({ user: z.string() }))
-    .query(({ ctx, input }) => {
-      return ctx.db.query.accounts.findFirst({
-        where: and(
-          eq(accounts.userId, input.user),
-          eq(accounts.provider, "spotify"),
-        ),
-      });
-    }),
+  retrieveMostPlayed: publicProcedure.query(async ({ ctx }) => {
+    let accessToken = ctx.session?.user.spotify.accessToken;
+    if (!accessToken) return null;
 
-  retrieveMostPlayed: publicProcedure
-    .input(selectAccountSchema)
-    .query(async ({ input: account }) => {
-      const track_data = await fetchTopTracks(account, ITEM_TARG);
-      return await transformSpotifyResponse(account, track_data);
-    }),
+    const track_data = await fetchTopTracks(accessToken, ITEM_TARG);
+    return await transformSpotifyResponse(accessToken, track_data);
+  }),
 });

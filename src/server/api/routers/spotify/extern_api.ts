@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-import { createSelectSchema } from "drizzle-zod";
-import { accounts } from "~/server/db/schema";
-const selectAccountSchema = createSelectSchema(accounts);
-type Account = z.infer<typeof selectAccountSchema>;
-
 import {
   TrackObject,
   trackObjSchema,
@@ -18,7 +13,7 @@ import {
 const MAX_REQUEST_ITEMS = 50;
 
 export async function fetchTopTracks(
-  account: Account,
+  accessToken: string,
   nitems: number,
 ): Promise<TrackObject[]> {
   var track_data: TrackObject[] = [];
@@ -38,7 +33,7 @@ export async function fetchTopTracks(
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
         },
@@ -59,7 +54,7 @@ export async function fetchTopTracks(
 }
 
 export async function fetchArtistsData(
-  account: Account,
+  accessToken: string,
   artistid_list: string[],
 ): Promise<ArtistObject[]> {
   var batches: string[] = [];
@@ -82,7 +77,7 @@ export async function fetchArtistsData(
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
         },
@@ -102,7 +97,7 @@ export async function fetchArtistsData(
 }
 
 export async function fetchTracksFeatures(
-  account: Account,
+  accessToken: string,
   trackid_list: string[],
 ): Promise<AudioFeatures[]> {
   var batches: string[] = [];
@@ -125,7 +120,7 @@ export async function fetchTracksFeatures(
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${account.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
         },
