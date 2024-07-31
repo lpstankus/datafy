@@ -2,8 +2,10 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
+  boolean,
   pgTableCreator,
   primaryKey,
+  unique,
   text,
   timestamp,
   varchar,
@@ -39,9 +41,7 @@ export const accounts = createTable(
     userId: varchar("userId", { length: 255 })
       .notNull()
       .references(() => users.id),
-    type: varchar("type", { length: 255 })
-      .$type<AdapterAccount["type"]>()
-      .notNull(),
+    type: varchar("type", { length: 255 }).$type<AdapterAccount["type"]>().notNull(),
     provider: varchar("provider", { length: 255 }).notNull(),
     providerAccountId: varchar("providerAccountId", { length: 255 }).notNull(),
     refresh_token: text("refresh_token"),
@@ -67,9 +67,7 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 export const sessions = createTable(
   "session",
   {
-    sessionToken: varchar("sessionToken", { length: 255 })
-      .notNull()
-      .primaryKey(),
+    sessionToken: varchar("sessionToken", { length: 255 }).notNull().primaryKey(),
     userId: varchar("userId", { length: 255 })
       .notNull()
       .references(() => users.id),
@@ -101,3 +99,86 @@ export const verificationTokens = createTable(
     compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }),
   }),
 );
+
+export const artists = createTable("artist", {
+  artistId: varchar("artistId", { length: 255 }).notNull().primaryKey(), // same as in spotify
+  name: varchar("name", { length: 255 }).notNull(),
+  popularity: integer("popularity"),
+  followers: integer("followers"),
+});
+export type InsertArtist = typeof artists.$inferInsert;
+
+export const artistsRelations = relations(artists, ({ many }) => ({
+  tracks: many(trackArtists),
+  genres: many(artistGenres),
+}));
+
+export const trackArtists = createTable("trackArtists", {
+  artistId: varchar("artistId", { length: 255 })
+    .notNull()
+    .references(() => artists.artistId),
+  trackId: varchar("trackId", { length: 255 })
+    .notNull()
+    .references(() => tracks.trackId),
+});
+export type InsertTrackArtist = typeof trackArtists.$inferInsert;
+
+export const artistTracksRelations = relations(trackArtists, ({ one }) => ({
+  artist: one(artists, { fields: [trackArtists.artistId], references: [artists.artistId] }),
+  track: one(tracks, { fields: [trackArtists.trackId], references: [tracks.trackId] }),
+}));
+
+export const artistGenres = createTable(
+  "artistGenre",
+  {
+    artistId: varchar("artistId", { length: 255 })
+      .notNull()
+      .references(() => artists.artistId),
+    genre: varchar("genreId", { length: 255 }).notNull(),
+  },
+  (artistGenres) => ({
+    compoundKey: primaryKey({
+      columns: [artistGenres.artistId, artistGenres.genre],
+    }),
+  }),
+);
+export type InsertArtistGenre = typeof artistGenres.$inferInsert;
+
+export const artistGenresRelations = relations(artistGenres, ({ one }) => ({
+  artist: one(artists, { fields: [artistGenres.artistId], references: [artists.artistId] }),
+}));
+
+export const tracks = createTable("track", {
+  trackId: varchar("trackId", { length: 255 }).notNull().primaryKey(), // same as in spotify
+  trackName: varchar("trackName", { length: 255 }).notNull(),
+  albumName: varchar("albumName", { length: 255 }),
+  releaseYear: integer("releaseYear").notNull(),
+  explicit: boolean("explicit").notNull(),
+  popularity: integer("popularity").notNull(),
+});
+export type InsertTrack = typeof tracks.$inferInsert;
+
+export const tracksRelations = relations(tracks, ({ many }) => ({
+  artists: many(trackArtists),
+  genres: many(trackGenres),
+}));
+
+export const trackGenres = createTable(
+  "trackGenre",
+  {
+    trackId: varchar("trackId", { length: 255 })
+      .notNull()
+      .references(() => tracks.trackId),
+    genre: varchar("genre", { length: 255 }).notNull(),
+  },
+  (trackGenres) => ({
+    compoundKey: primaryKey({
+      columns: [trackGenres.trackId, trackGenres.genre],
+    }),
+  }),
+);
+export type InsertTrackGenre = typeof trackGenres.$inferInsert;
+
+export const trackGenresRelations = relations(trackGenres, ({ one }) => ({
+  track: one(tracks, { fields: [trackGenres.trackId], references: [tracks.trackId] }),
+}));
