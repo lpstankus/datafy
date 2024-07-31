@@ -32,33 +32,19 @@ export default async function Home() {
 }
 
 async function CrudShowcase() {
-  const trackList = await api.spotify.retrieveMostPlayed();
-  if (!trackList) return (
+  const session = await getServerAuthSession();
+  let accessToken = session?.user.spotify.accessToken;
+  if (!accessToken) return (
     <div>
       <p className="truncate">User not logged in...</p>
     </div>
   )
 
+  await api.spotify.fetchTopTracks({ accessToken })
   return (
     <div className="w-full max-w-md">
-      <p className="font-bold">Artists:</p>
       <div>
-        {trackList.artist_data.map((obj, _) =>
-          <div className="py-2">
-            <p className="truncate">{obj.name} ({obj.popularity}/100 - {obj.followers} followers)</p>
-            <p className="truncate">{obj.genres.join(", ")}</p>
-          </div>
-        )}
-      </div>
-
-      <p className="font-bold pt-10">Tracks:</p>
-      <div>
-        {trackList.track_data.map((obj, _) =>
-          <div className="py-2">
-            <p className="truncate">{obj.track_name} - {obj.album_name} ({obj.popularity}/100)</p>
-            <p className="truncate">{obj.genres.join(", ")}</p>
-          </div>
-        )}
+        <p>See console log</p>
       </div>
     </div>
   );
