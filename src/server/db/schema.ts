@@ -114,14 +114,22 @@ export const artistsRelations = relations(artists, ({ many }) => ({
   genres: many(artistGenres),
 }));
 
-export const trackArtists = createTable("trackArtists", {
-  artistId: varchar("artistId", { length: 255 })
-    .notNull()
-    .references(() => artists.artistId),
-  trackId: varchar("trackId", { length: 255 })
-    .notNull()
-    .references(() => tracks.trackId),
-});
+export const trackArtists = createTable(
+  "trackArtists",
+  {
+    artistId: varchar("artistId", { length: 255 })
+      .notNull()
+      .references(() => artists.artistId),
+    trackId: varchar("trackId", { length: 255 })
+      .notNull()
+      .references(() => tracks.trackId),
+  },
+  (trackArtist) => ({
+    compoundKey: primaryKey({
+      columns: [trackArtist.artistId, trackArtist.trackId],
+    }),
+  }),
+);
 export type InsertTrackArtist = typeof trackArtists.$inferInsert;
 
 export const artistTracksRelations = relations(trackArtists, ({ one }) => ({
