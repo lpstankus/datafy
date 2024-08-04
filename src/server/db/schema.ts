@@ -59,6 +59,7 @@ export const accounts = createTable(
     userIdIdx: index("account_userId_idx").on(account.userId),
   }),
 );
+export type Account = typeof accounts.$inferSelect;
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
   user: one(users, { fields: [accounts.userId], references: [users.id] }),
