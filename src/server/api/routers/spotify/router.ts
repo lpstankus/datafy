@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { sql } from "drizzle-orm";
+import { sql, and, eq, max } from "drizzle-orm";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { refreshAccount } from "~/server/auth";
 import * as schema from "~/server/db/schema";
 import { TrackObject, ArtistObject } from "./extern_types";
 import * as spotify from "./extern_api";
@@ -23,6 +24,33 @@ export const spotifyRouter = createTRPCRouter({
       let { accessToken } = input;
       let data = await fetchTopTracks(accessToken);
       saveTrackData(ctx.db, data);
+    }),
+
+  // Fetch and save User's short term listening habits in Spotify
+  // TODO: save top tracks and track metadata
+  snapshotUser: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      let { userId } = input;
+      const account = await ctx.db.query.accounts.findFirst({
+        where: and(eq(schema.accounts.provider, "spotify"), eq(schema.accounts.userId, userId)),
+      });
+
+      if (!account) {
+        console.error(`Failed to find spotify account for user: ${userId}`);
+        return;
+      }
+
+      let refreshedAccount = await refreshAccount(account);
+      if (!refreshedAccount) {
+        console.error(`Failed to refresh spotify account for user: ${userId})`);
+        return;
+      }
+
+      let data = await fetchTopTracks(refreshedAccount.accessToken);
+      await saveTrackData(ctx.db, data);
+
+      saveTrackList(ctx.db, userId, data.tracks);
     }),
 });
 
@@ -181,4 +209,32 @@ function processGenres(
   }
 
   return { artist_genres, track_genres };
+}
+
+async function saveTrackList(
+  db: VercelPgDatabase<typeof schema>,
+  userId: string,
+  tracks: schema.InsertTrack[],
+) {
+  let generation_query = await db
+    .select({ value: max(schema.trackLists.generation) })
+    .from(schema.trackLists);
+
+  let generation = 0;
+  if (generation_query[0] && generation_query[0].value) {
+    generation = generation_query[0].value + 1;
+  }
+
+  let trackList = tracks.reduce<schema.InsertTrackList[]>((acc, track) => {
+    acc.push({
+      userId,
+      trackId: track.trackId,
+      generation,
+      ranking: acc.length,
+      timestamp: new Date().toDateString(),
+    });
+    return acc;
+  }, []);
+
+  await db.insert(schema.trackLists).values(trackList);
 }
