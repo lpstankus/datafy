@@ -12,10 +12,7 @@ import {
 // Maximum number of items allowed per request
 const MAX_REQUEST_ITEMS = 50;
 
-export async function fetchTopTracks(
-  accessToken: string,
-  nitems: number,
-): Promise<TrackObject[]> {
+export async function fetchTopTracks(accessToken: string, nitems: number): Promise<TrackObject[]> {
   var track_data: TrackObject[] = [];
   try {
     for (
@@ -23,21 +20,18 @@ export async function fetchTopTracks(
       start < nitems;
       start += len, len = Math.min(nitems - start, MAX_REQUEST_ITEMS)
     ) {
-      const response = await fetch(
-        "https://api.spotify.com/v1/me/top/tracks?" +
-          new URLSearchParams({
-            time_raunge: "short_term",
-            limit: `${len}`,
-            offset: `${start}`,
-          }),
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
+      const params = new URLSearchParams({
+        time_range: "short_term",
+        limit: `${len}`,
+        offset: `${start}`,
+      });
+      const response = await fetch("https://api.spotify.com/v1/me/top/tracks?" + params, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-      );
+      });
 
       const json = await response.json();
       if (!response.ok) throw json;
@@ -70,10 +64,7 @@ export async function fetchArtistsData(
   try {
     for (const batch of batches) {
       const response = await fetch(
-        "https://api.spotify.com/v1/artists?" +
-          new URLSearchParams({
-            ids: batch,
-          }),
+        "https://api.spotify.com/v1/artists?" + new URLSearchParams({ ids: batch }),
         {
           method: "GET",
           headers: {
@@ -113,10 +104,7 @@ export async function fetchTracksFeatures(
   try {
     for (const batch of batches) {
       const response = await fetch(
-        "https://api.spotify.com/v1/audio-features?" +
-          new URLSearchParams({
-            ids: batch,
-          }),
+        "https://api.spotify.com/v1/audio-features?" + new URLSearchParams({ ids: batch }),
         {
           method: "GET",
           headers: {
