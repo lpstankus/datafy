@@ -1,23 +1,18 @@
 import { relations, sql } from "drizzle-orm";
+
 import {
+  boolean,
+  date,
   index,
   integer,
-  boolean,
   pgTableCreator,
   primaryKey,
-  unique,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
-/**
- * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
- * database instance for multiple projects.
- *
- * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
- */
 export const createTable = pgTableCreator((name) => `datafy_${name}`);
 
 export const users = createTable("user", {
@@ -190,4 +185,30 @@ export type InsertTrackGenre = typeof trackGenres.$inferInsert;
 
 export const trackGenresRelations = relations(trackGenres, ({ one }) => ({
   track: one(tracks, { fields: [trackGenres.trackId], references: [tracks.trackId] }),
+}));
+
+export const trackLists = createTable(
+  "trackList",
+  {
+    userId: varchar("userId", { length: 255 })
+      .notNull()
+      .references(() => users.id),
+    trackId: varchar("trackId", { length: 255 })
+      .notNull()
+      .references(() => tracks.trackId),
+    generation: integer("generation").notNull(),
+    ranking: integer("ranking").notNull(),
+    timestamp: date("timestamp").notNull(),
+  },
+  (trackList) => ({
+    compoundKey: primaryKey({
+      columns: [trackList.userId, trackList.generation, trackList.ranking],
+    }),
+  }),
+);
+export type InsertTrackList = typeof trackLists.$inferInsert;
+
+export const trackListRelations = relations(trackLists, ({ one }) => ({
+  user: one(users, { fields: [trackLists.userId], references: [users.id] }),
+  track: one(tracks, { fields: [trackLists.trackId], references: [tracks.trackId] }),
 }));
