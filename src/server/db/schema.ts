@@ -212,3 +212,29 @@ export const trackListRelations = relations(trackLists, ({ one }) => ({
   user: one(users, { fields: [trackLists.userId], references: [users.id] }),
   track: one(tracks, { fields: [trackLists.trackId], references: [tracks.trackId] }),
 }));
+
+export const artistLists = createTable(
+  "artistList",
+  {
+    userId: varchar("userId", { length: 255 })
+      .notNull()
+      .references(() => users.id),
+    artistId: varchar("artistId", { length: 255 })
+      .notNull()
+      .references(() => artists.artistId),
+    generation: integer("generation").notNull(),
+    ranking: integer("ranking").notNull(),
+    timestamp: date("timestamp").notNull(),
+  },
+  (artistList) => ({
+    compoundKey: primaryKey({
+      columns: [artistList.userId, artistList.generation, artistList.ranking],
+    }),
+  }),
+);
+export type InsertArtistList = typeof artistLists.$inferInsert;
+
+export const artistListRelations = relations(artistLists, ({ one }) => ({
+  user: one(users, { fields: [artistLists.userId], references: [users.id] }),
+  artist: one(artists, { fields: [artistLists.artistId], references: [artists.artistId] }),
+}));
