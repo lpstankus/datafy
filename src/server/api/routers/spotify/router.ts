@@ -40,7 +40,7 @@ export const spotifyRouter = createTRPCRouter({
     }),
 
   // Fetch and save User's short term listening habits in Spotify
-  // TODO: save top tracks and track metadata
+  // TODO: save track metadata
   snapshotUser: publicProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -60,10 +60,14 @@ export const spotifyRouter = createTRPCRouter({
         return;
       }
 
-      let data = await fetchTopTracks(refreshedAccount.accessToken);
-      await saveTrackData(ctx.db, data);
+      let track_data = await fetchTopTracks(refreshedAccount.accessToken);
+      await saveTrackData(ctx.db, track_data);
 
-      saveTrackList(ctx.db, userId, data.tracks);
+      let artist_data = await fetchTopArtists(refreshedAccount.accessToken);
+      await saveArtistData(ctx.db, artist_data);
+
+      saveTrackList(ctx.db, userId, track_data.tracks);
+      saveArtistList(ctx.db, userId, artist_data.artists);
     }),
 });
 
@@ -293,4 +297,32 @@ async function saveTrackList(
   }, []);
 
   await db.insert(schema.trackLists).values(trackList);
+}
+
+async function saveArtistList(
+  db: VercelPgDatabase<typeof schema>,
+  userId: string,
+  artists: schema.InsertArtist[],
+) {
+  let generation_query = await db
+    .select({ value: max(schema.artistLists.generation) })
+    .from(schema.trackLists);
+
+  let generation = 0;
+  if (generation_query[0] && generation_query[0].value) {
+    generation = generation_query[0].value + 1;
+  }
+
+  let artistList = artists.reduce<schema.InsertArtistList[]>((acc, artist) => {
+    acc.push({
+      userId,
+      artistId: artist.artistId,
+      generation,
+      ranking: acc.length,
+      timestamp: new Date().toDateString(),
+    });
+    return acc;
+  }, []);
+
+  await db.insert(schema.artistLists).values(artistList);
 }
