@@ -12,39 +12,52 @@ import {
 // Maximum number of items allowed per request
 const MAX_REQUEST_ITEMS = 50;
 
-export async function fetchTopTracks(accessToken: string, nitems: number): Promise<TrackObject[]> {
-  var track_data: TrackObject[] = [];
+async function fetchTopItems(
+  token: string,
+  itemType: "artists" | "tracks",
+  nitems: number,
+): Promise<any> {
+  var data: any[] = [];
+
+  let schema = itemType == "artists" ? artistObjSchema : trackObjSchema;
+
   try {
-    for (
-      var start = 0, len = Math.min(MAX_REQUEST_ITEMS, nitems);
-      start < nitems;
-      start += len, len = Math.min(nitems - start, MAX_REQUEST_ITEMS)
-    ) {
-      const params = new URLSearchParams({
-        time_range: "short_term",
-        limit: `${len}`,
-        offset: `${start}`,
-      });
-      const response = await fetch("https://api.spotify.com/v1/me/top/tracks?" + params, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+    let len = Math.min(MAX_REQUEST_ITEMS, nitems);
+    for (var idx = 0; idx < nitems; idx += len) {
+      const params = { time_range: "short_term", limit: `${len}`, offset: `${idx}` };
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/top/${itemType}?${new URLSearchParams(params)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
         },
-      });
+      );
 
       const json = await response.json();
       if (!response.ok) throw json;
 
-      const response_array = z.array(trackObjSchema).parse(json.items);
-      track_data = track_data.concat(response_array);
+      const response_array = z.array(schema).parse(json.items);
+      data = data.concat(response_array);
+
+      len = Math.min(nitems - idx, MAX_REQUEST_ITEMS);
     }
-    return track_data;
+    return data;
   } catch (error) {
-    console.error("Error requesting most played songs:", error);
-    console.error(`Got ${track_data.length} tracks out of ${nitems} requested`);
-    return track_data;
+    console.error(`Error requesting most played ${itemType}:`, error);
+    console.error(`Got ${data.length} ${itemType} out of ${nitems} requested`);
+    return data;
   }
+}
+
+export async function fetchTopTracks(token: string, nitems: number): Promise<TrackObject[]> {
+  return await fetchTopItems(token, "tracks", nitems);
+}
+
+export async function fetchTopArtists(token: string, nitems: number): Promise<ArtistObject[]> {
+  return fetchTopItems(token, "artists", nitems);
 }
 
 export async function fetchArtistsData(
