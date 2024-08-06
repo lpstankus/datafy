@@ -9,6 +9,11 @@ import * as spotify from "./extern_api";
 
 const ITEM_TARG = 10;
 
+type ArtistData = {
+  artists: schema.InsertArtist[];
+  artist_genres: schema.InsertArtistGenre[];
+};
+
 type TrackData = {
   artists: schema.InsertArtist[];
   artist_genres: schema.InsertArtistGenre[];
@@ -24,6 +29,14 @@ export const spotifyRouter = createTRPCRouter({
       let { accessToken } = input;
       let data = await fetchTopTracks(accessToken);
       saveTrackData(ctx.db, data);
+    }),
+
+  fetchTopArtists: publicProcedure
+    .input(z.object({ accessToken: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      let { accessToken } = input;
+      let data = await fetchTopArtists(accessToken);
+      saveArtistData(ctx.db, data);
     }),
 
   // Fetch and save User's short term listening habits in Spotify
@@ -53,6 +66,28 @@ export const spotifyRouter = createTRPCRouter({
       saveTrackList(ctx.db, userId, data.tracks);
     }),
 });
+
+async function saveArtistData(db: VercelPgDatabase<typeof schema>, data: ArtistData) {
+  let artists_promise = db
+    .insert(schema.artists)
+    .values(data.artists)
+    .onConflictDoUpdate({
+      target: schema.artists.artistId,
+      set: {
+        name: sql`excluded."name"`,
+        popularity: sql`excluded."popularity"`,
+        followers: sql`excluded."followers"`,
+      },
+    });
+
+  let artist_genres_promise = db
+    .insert(schema.artistGenres)
+    .values(data.artist_genres)
+    .onConflictDoNothing();
+
+  await artists_promise;
+  await artist_genres_promise;
+}
 
 async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackData) {
   let tracks_promise = db
@@ -103,6 +138,13 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
   await artist_genres_promise;
 }
 
+async function fetchTopArtists(accessToken: string): Promise<ArtistData> {
+  let artist_data = await spotify.fetchTopArtists(accessToken, ITEM_TARG);
+  let artists = processArtistsData(artist_data);
+  let artist_genres = linkArtistGenres(artist_data);
+  return { artists, artist_genres };
+}
+
 async function fetchTopTracks(accessToken: string): Promise<TrackData> {
   let track_data = await spotify.fetchTopTracks(accessToken, ITEM_TARG);
   let { tracks, track_artists } = processTracksData(track_data);
@@ -111,7 +153,7 @@ async function fetchTopTracks(accessToken: string): Promise<TrackData> {
   let artist_data = await spotify.fetchArtistsData(accessToken, artist_ids);
   let artists = processArtistsData(artist_data);
 
-  let { artist_genres, track_genres } = processGenres(track_data, artist_data);
+  let { artist_genres, track_genres } = linkTrackGenres(track_data, artist_data);
 
   return { artists, artist_genres, tracks, track_genres, track_artists };
 }
@@ -166,7 +208,21 @@ function processArtistsData(artist_data: ArtistObject[]): schema.InsertArtist[] 
   return processed_artists;
 }
 
-function processGenres(
+function linkArtistGenres(artist_data: ArtistObject[]): schema.InsertArtistGenre[] {
+  let artistGenres: schema.InsertArtistGenre[] = [];
+  for (let artist of artist_data) {
+    if (!artist.id) continue;
+    for (let genre of artist.genres || []) {
+      artistGenres.push({
+        artistId: artist.id,
+        genre,
+      });
+    }
+  }
+  return artistGenres;
+}
+
+function linkTrackGenres(
   track_data: TrackObject[],
   artist_data: ArtistObject[],
 ): { track_genres: schema.InsertTrackGenre[]; artist_genres: schema.InsertArtistGenre[] } {
