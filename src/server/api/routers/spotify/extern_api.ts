@@ -9,8 +9,10 @@ import {
   audioFeatSchema,
 } from "./extern_types";
 
-// Maximum number of items allowed per request
+// Maximum number of items allowed per request type
 const MAX_REQUEST_ITEMS = 50;
+const MAX_REQUEST_ARTISTS = 50;
+const MAX_REQUEST_FEATURES = 100;
 
 async function fetchTopItems(
   token: string,
@@ -66,7 +68,7 @@ export async function fetchArtistsData(
 ): Promise<ArtistObject[]> {
   var batches: string[] = [];
   artistid_list.forEach((id, idx) => {
-    if (idx % 50 == 0) {
+    if (idx % MAX_REQUEST_ARTISTS == 0) {
       batches.push(`${id}`);
     } else {
       batches[batches.length - 1] += `,${id}`;
@@ -106,7 +108,7 @@ export async function fetchTracksFeatures(
 ): Promise<AudioFeatures[]> {
   var batches: string[] = [];
   trackid_list.forEach((id, idx) => {
-    if (idx % 50 == 0) {
+    if (idx % MAX_REQUEST_FEATURES == 0) {
       batches.push(`${id}`);
     } else {
       batches[batches.length - 1] += `,${id}`;
@@ -130,12 +132,12 @@ export async function fetchTracksFeatures(
       const json = await response.json();
       if (!response.ok) throw json;
 
-      const response_array = z.array(audioFeatSchema).parse(json.artists);
+      const response_array = z.array(audioFeatSchema).parse(json.audio_features);
       audio_features = audio_features.concat(response_array);
     }
-    return audio_features;
   } catch (error) {
     console.error("Error requesting artists data", error);
-    return audio_features;
   }
+
+  return audio_features.map((features, idx) => ({ track_id: trackid_list[idx], ...features }));
 }
