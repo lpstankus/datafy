@@ -110,6 +110,7 @@ export type InsertArtist = typeof artists.$inferInsert;
 
 export const artistsRelations = relations(artists, ({ many }) => ({
   tracks: many(trackArtists),
+  albums: many(albumArtists),
   genres: many(artistGenres),
   artistLists: many(artistLists),
 }));
@@ -165,10 +166,9 @@ export const artistListRelations = relations(artistLists, ({ one }) => ({
 export const tracks = createTable("track", {
   trackId: varchar("trackId", { length: 255 }).notNull().primaryKey(), // same as in spotify
   trackName: varchar("trackName", { length: 255 }).notNull(),
-  albumName: varchar("albumName", { length: 255 }),
-  releaseYear: integer("releaseYear").notNull(),
   explicit: boolean("explicit").notNull(),
   popularity: integer("popularity").notNull(),
+  albumId: varchar("albumId", { length: 255 }).references(() => albums.albumId),
 });
 export type InsertTrack = typeof tracks.$inferInsert;
 
@@ -177,6 +177,7 @@ export const tracksRelations = relations(tracks, ({ many, one }) => ({
   genres: many(trackGenres),
   trackLists: many(trackLists),
   features: one(tracksFeatures, { fields: [tracks.trackId], references: [tracksFeatures.trackId] }),
+  album: one(albums, { fields: [tracks.albumId], references: [albums.albumId] }),
 }));
 
 export const trackArtists = createTable(
@@ -271,4 +272,44 @@ export type InsertTrackList = typeof trackLists.$inferInsert;
 export const trackListRelations = relations(trackLists, ({ one }) => ({
   user: one(users, { fields: [trackLists.userId], references: [users.id] }),
   track: one(tracks, { fields: [trackLists.trackId], references: [tracks.trackId] }),
+}));
+
+// ----- Album stuff -----
+
+export const albums = createTable("album", {
+  albumId: varchar("albumId", { length: 255 }).notNull().primaryKey(), // same as in spotify
+  name: varchar("name", { length: 255 }),
+  type: varchar("type", { length: 255 }),
+  totalTracks: integer("totalTracks"),
+  releaseYear: integer("releaseYear"),
+  imageURL: varchar("imageURL", { length: 255 }),
+});
+export type InsertAlbum = typeof albums.$inferInsert;
+
+export const albumRelations = relations(albums, ({ many }) => ({
+  tracks: many(tracks),
+  artists: many(albumArtists),
+}));
+
+export const albumArtists = createTable(
+  "albumArtists",
+  {
+    albumId: varchar("albumId", { length: 255 })
+      .notNull()
+      .references(() => albums.albumId),
+    artistId: varchar("artistId", { length: 255 })
+      .notNull()
+      .references(() => artists.artistId),
+  },
+  (albumArtists) => ({
+    compendKey: primaryKey({
+      columns: [albumArtists.albumId, albumArtists.artistId],
+    }),
+  }),
+);
+export type InsertAlbumArtists = typeof albumArtists.$inferInsert;
+
+export const albumArtistsRelations = relations(albumArtists, ({ one }) => ({
+  album: one(albums, { fields: [albumArtists.albumId], references: [albums.albumId] }),
+  artist: one(artists, { fields: [albumArtists.artistId], references: [artists.artistId] }),
 }));
