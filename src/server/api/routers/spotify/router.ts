@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sql, and, eq, max } from "drizzle-orm";
+import { sql, and, eq, max, SQL } from "drizzle-orm";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { refreshAccount } from "~/server/auth";
@@ -17,6 +17,8 @@ type ArtistData = {
 type TrackData = {
   artists: schema.InsertArtist[];
   artist_genres: schema.InsertArtistGenre[];
+  albums: schema.InsertAlbum[];
+  album_artists: schema.InsertAlbumArtists[];
   tracks: schema.InsertTrack[];
   track_genres: schema.InsertTrackGenre[];
   track_artists: schema.InsertTrackArtist[];
@@ -72,7 +74,7 @@ export const spotifyRouter = createTRPCRouter({
 });
 
 async function saveArtistData(db: VercelPgDatabase<typeof schema>, data: ArtistData) {
-  let artists_promise = db
+  await db
     .insert(schema.artists)
     .values(data.artists)
     .onConflictDoUpdate({
@@ -83,32 +85,38 @@ async function saveArtistData(db: VercelPgDatabase<typeof schema>, data: ArtistD
         followers: sql`excluded."followers"`,
       },
     });
-
-  let artist_genres_promise = db
-    .insert(schema.artistGenres)
-    .values(data.artist_genres)
-    .onConflictDoNothing();
-
-  await artists_promise;
-  await artist_genres_promise;
+  await db.insert(schema.artistGenres).values(data.artist_genres).onConflictDoNothing();
 }
 
 async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackData) {
-  let tracks_promise = db
+  await db
+    .insert(schema.albums)
+    .values(data.albums)
+    .onConflictDoUpdate({
+      target: schema.albums.albumId,
+      set: {
+        name: sql`excluded."name"`,
+        type: sql`excluded."type"`,
+        totalTracks: sql`excluded."totalTracks"`,
+        releaseYear: sql`excluded."releaseYear"`,
+        imageURL: sql`excluded."imageURL"`,
+      },
+    });
+
+  await db
     .insert(schema.tracks)
     .values(data.tracks)
     .onConflictDoUpdate({
       target: schema.tracks.trackId,
       set: {
         trackName: sql`excluded."trackName"`,
-        albumName: sql`excluded."albumName"`,
-        releaseYear: sql`excluded."releaseYear"`,
         explicit: sql`excluded."explicit"`,
         popularity: sql`excluded."popularity"`,
+        albumId: sql`excluded."albumId"`,
       },
     });
 
-  let artists_promise = db
+  await db
     .insert(schema.artists)
     .values(data.artists)
     .onConflictDoUpdate({
@@ -120,7 +128,7 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
       },
     });
 
-  let track_features_promise = db
+  await db
     .insert(schema.tracksFeatures)
     .values(data.track_features)
     .onConflictDoUpdate({
@@ -142,27 +150,10 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
       },
     });
 
-  let artist_tracks_promise = db
-    .insert(schema.trackArtists)
-    .values(data.track_artists)
-    .onConflictDoNothing();
-
-  let track_genres_promise = db
-    .insert(schema.trackGenres)
-    .values(data.track_genres)
-    .onConflictDoNothing();
-
-  let artist_genres_promise = db
-    .insert(schema.artistGenres)
-    .values(data.artist_genres)
-    .onConflictDoNothing();
-
-  await tracks_promise;
-  await artists_promise;
-  await track_features_promise;
-  await artist_tracks_promise;
-  await track_genres_promise;
-  await artist_genres_promise;
+  await db.insert(schema.albumArtists).values(data.album_artists).onConflictDoNothing();
+  await db.insert(schema.trackArtists).values(data.track_artists).onConflictDoNothing();
+  await db.insert(schema.trackGenres).values(data.track_genres).onConflictDoNothing();
+  await db.insert(schema.artistGenres).values(data.artist_genres).onConflictDoNothing();
 }
 
 async function fetchTopArtists(accessToken: string): Promise<ArtistData> {
@@ -174,27 +165,40 @@ async function fetchTopArtists(accessToken: string): Promise<ArtistData> {
 
 async function fetchTopTracks(accessToken: string): Promise<TrackData> {
   let track_data = await spotify.fetchTopTracks(accessToken, ITEM_TARG);
-  let { tracks, track_artists } = processTracksData(track_data);
+  let { tracks, track_artists, albums, album_artists } = processTracksData(track_data);
 
   let track_ids = tracks.reduce<string[]>((acc, track) => acc.concat([track.trackId]), []);
   let track_features_data = await spotify.fetchTracksFeatures(accessToken, track_ids);
   let track_features = processTrackFeatData(track_features_data);
 
-  let artist_ids = filterArtistIds(track_artists);
+  let artist_ids = filterArtistIds(track_artists, album_artists);
   let artist_data = await spotify.fetchArtistsData(accessToken, artist_ids);
   let artists = processArtistsData(artist_data);
 
   let { artist_genres, track_genres } = linkTrackGenres(track_data, artist_data);
 
-  return { artists, artist_genres, tracks, track_genres, track_artists, track_features };
+  return {
+    artists,
+    artist_genres,
+    albums,
+    album_artists,
+    tracks,
+    track_genres,
+    track_artists,
+    track_features,
+  };
 }
 
 function processTracksData(track_data: TrackObject[]): {
   tracks: schema.InsertTrack[];
   track_artists: schema.InsertTrackArtist[];
+  albums: schema.InsertAlbum[];
+  album_artists: schema.InsertAlbumArtists[];
 } {
   let tracks: schema.InsertTrack[] = [];
   let track_artists: schema.InsertTrackArtist[] = [];
+  let album_map = new Map<string, schema.InsertAlbum>();
+  let album_artists_map = new Map<string, string[]>();
 
   for (let track of track_data) {
     if (!track.id) continue;
@@ -210,18 +214,43 @@ function processTracksData(track_data: TrackObject[]): {
     tracks.push({
       trackId: track.id,
       trackName: track.name || "Untitled",
-      albumName: track.album?.name || "Untitled",
-      releaseYear: parseInt(track.album?.release_date.split("-")[0] || "0"),
       explicit: track.explicit || false,
       popularity: track.popularity || 0,
+      albumId: track.album?.id || null,
     });
+
+    if (!track.album) continue;
+    album_map.set(track.album.id, {
+      albumId: track.album.id,
+      name: track.album.name || null,
+      type: track.album.album_type || null,
+      releaseYear: parseInt(track.album?.release_date.split("-")[0] || "") || null,
+      totalTracks: track.album.total_tracks || null,
+      imageURL: track.album.images?.[0]?.url || null,
+    });
+    album_artists_map.set(
+      track.album.id,
+      (track.album.artists || []).filter((a) => a.id).map((a) => a.id || ""),
+    );
   }
 
-  return { tracks, track_artists };
+  let albums = [...album_map.values()];
+  let album_artists: schema.InsertAlbumArtists[] = [];
+  album_artists_map.forEach((val, key) => {
+    for (let artist of val) album_artists.push({ albumId: key, artistId: artist });
+  });
+
+  return { tracks, track_artists, albums, album_artists };
 }
 
-function filterArtistIds(track_artists: schema.InsertTrackArtist[]): string[] {
-  return [...track_artists.reduce((acc, obj) => acc.add(obj.artistId), new Set<string>())];
+function filterArtistIds(
+  track_artists: schema.InsertTrackArtist[],
+  album_artists: schema.InsertAlbumArtists[],
+): string[] {
+  let ids = new Set<string>();
+  track_artists.forEach((obj) => ids.add(obj.artistId));
+  album_artists.forEach((obj) => ids.add(obj.artistId));
+  return [...ids];
 }
 
 function processArtistsData(artist_data: ArtistObject[]): schema.InsertArtist[] {
