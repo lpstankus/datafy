@@ -108,6 +108,7 @@ export type InsertArtist = typeof artists.$inferInsert;
 export const artistsRelations = relations(artists, ({ many }) => ({
   tracks: many(trackArtists),
   genres: many(artistGenres),
+  artistLists: many(artistLists),
 }));
 
 export const trackArtists = createTable(
@@ -166,6 +167,7 @@ export type InsertTrack = typeof tracks.$inferInsert;
 export const tracksRelations = relations(tracks, ({ many, one }) => ({
   artists: many(trackArtists),
   genres: many(trackGenres),
+  trackLists: many(trackLists),
   features: one(tracksFeatures, { fields: [tracks.trackId], references: [tracksFeatures.trackId] }),
 }));
 
