@@ -330,11 +330,7 @@ async function saveTrackList(
   let generation_query = await db
     .select({ value: max(schema.trackLists.generation) })
     .from(schema.trackLists);
-
-  let generation = 0;
-  if (generation_query[0] && generation_query[0].value) {
-    generation = generation_query[0].value + 1;
-  }
+  let generation = (generation_query[0]?.value || 0) + 1;
 
   let trackList = tracks.reduce<schema.InsertTrackList[]>((acc, track) => {
     acc.push({
@@ -357,12 +353,8 @@ async function saveArtistList(
 ) {
   let generation_query = await db
     .select({ value: max(schema.artistLists.generation) })
-    .from(schema.trackLists);
-
-  let generation = 0;
-  if (generation_query[0] && generation_query[0].value) {
-    generation = generation_query[0].value + 1;
-  }
+    .from(schema.artistLists);
+  let generation = (generation_query[0]?.value || 0) + 1;
 
   let artistList = artists.reduce<schema.InsertArtistList[]>((acc, artist) => {
     acc.push({
