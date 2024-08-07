@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  real,
   pgTableCreator,
   primaryKey,
   text,
@@ -162,9 +163,10 @@ export const tracks = createTable("track", {
 });
 export type InsertTrack = typeof tracks.$inferInsert;
 
-export const tracksRelations = relations(tracks, ({ many }) => ({
+export const tracksRelations = relations(tracks, ({ many, one }) => ({
   artists: many(trackArtists),
   genres: many(trackGenres),
+  features: one(tracksFeatures, { fields: [tracks.trackId], references: [tracksFeatures.trackId] }),
 }));
 
 export const trackGenres = createTable(
@@ -185,6 +187,31 @@ export type InsertTrackGenre = typeof trackGenres.$inferInsert;
 
 export const trackGenresRelations = relations(trackGenres, ({ one }) => ({
   track: one(tracks, { fields: [trackGenres.trackId], references: [tracks.trackId] }),
+}));
+
+export const tracksFeatures = createTable("trackFeatures", {
+  trackId: varchar("trackId", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .references(() => tracks.trackId),
+  duration: integer("duration"),
+  acousticness: real("acousticness"),
+  danceability: real("danceability"),
+  instrumentalness: real("instrumentalness"),
+  liveness: real("liveness"),
+  loudness: real("loudness"),
+  speechiness: real("speechiness"),
+  energy: real("energy"),
+  valence: real("valence"),
+  key: integer("key"),
+  mode: integer("mode"),
+  tempo: real("tempo"),
+  timeSignature: integer("timeSignature"),
+});
+export type InsertTrackFeatures = typeof tracksFeatures.$inferInsert;
+
+export const trackFeaturesRelations = relations(tracksFeatures, ({ one }) => ({
+  track: one(tracks, { fields: [tracksFeatures.trackId], references: [tracks.trackId] }),
 }));
 
 export const trackLists = createTable(
