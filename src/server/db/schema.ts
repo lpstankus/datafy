@@ -102,6 +102,7 @@ export const artists = createTable("artist", {
   name: varchar("name", { length: 255 }).notNull(),
   popularity: integer("popularity"),
   followers: integer("followers"),
+  imageURL: varchar("imageURL", { length: 255 }),
 });
 export type InsertArtist = typeof artists.$inferInsert;
 

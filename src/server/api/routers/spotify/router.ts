@@ -233,6 +233,7 @@ function processArtistsData(artist_data: ArtistObject[]): schema.InsertArtist[] 
       name: artist.name || "Unknown",
       popularity: artist.popularity || 0,
       followers: artist.followers?.total || 0,
+      imageURL: artist.images?.[0]?.url || null,
     };
     processed_artists.push(artist_obj);
   }
