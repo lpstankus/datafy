@@ -4,7 +4,7 @@ import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { refreshAccount } from "~/server/auth";
 import * as schema from "~/server/db/schema";
-import { TrackObject, ArtistObject } from "./extern_types";
+import { TrackObject, ArtistObject, AudioFeatures } from "./extern_types";
 import * as spotify from "./extern_api";
 
 const ITEM_TARG = 10;
@@ -20,6 +20,7 @@ type TrackData = {
   tracks: schema.InsertTrack[];
   track_genres: schema.InsertTrackGenre[];
   track_artists: schema.InsertTrackArtist[];
+  track_features: schema.InsertTrackFeatures[];
 };
 
 export const spotifyRouter = createTRPCRouter({
@@ -39,8 +40,7 @@ export const spotifyRouter = createTRPCRouter({
       saveArtistData(ctx.db, data);
     }),
 
-  // Fetch and save User's short term listening habits in Spotify
-  // TODO: save track metadata
+  // Fetch and save User's short term listening habits from Spotify
   snapshotUser: publicProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -120,6 +120,28 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
       },
     });
 
+  let track_features_promise = db
+    .insert(schema.tracksFeatures)
+    .values(data.track_features)
+    .onConflictDoUpdate({
+      target: schema.tracksFeatures.trackId,
+      set: {
+        duration: sql`excluded."duration"`,
+        acousticness: sql`excluded."acousticness"`,
+        danceability: sql`excluded."danceability"`,
+        instrumentalness: sql`excluded."instrumentalness"`,
+        liveness: sql`excluded."liveness"`,
+        loudness: sql`excluded."loudness"`,
+        speechiness: sql`excluded."speechiness"`,
+        energy: sql`excluded."energy"`,
+        valence: sql`excluded."valence"`,
+        key: sql`excluded."key"`,
+        mode: sql`excluded."mode"`,
+        tempo: sql`excluded."tempo"`,
+        timeSignature: sql`excluded."timeSignature"`,
+      },
+    });
+
   let artist_tracks_promise = db
     .insert(schema.trackArtists)
     .values(data.track_artists)
@@ -137,6 +159,7 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
 
   await tracks_promise;
   await artists_promise;
+  await track_features_promise;
   await artist_tracks_promise;
   await track_genres_promise;
   await artist_genres_promise;
@@ -153,13 +176,17 @@ async function fetchTopTracks(accessToken: string): Promise<TrackData> {
   let track_data = await spotify.fetchTopTracks(accessToken, ITEM_TARG);
   let { tracks, track_artists } = processTracksData(track_data);
 
+  let track_ids = tracks.reduce<string[]>((acc, track) => acc.concat([track.trackId]), []);
+  let track_features_data = await spotify.fetchTracksFeatures(accessToken, track_ids);
+  let track_features = processTrackFeatData(track_features_data);
+
   let artist_ids = filterArtistIds(track_artists);
   let artist_data = await spotify.fetchArtistsData(accessToken, artist_ids);
   let artists = processArtistsData(artist_data);
 
   let { artist_genres, track_genres } = linkTrackGenres(track_data, artist_data);
 
-  return { artists, artist_genres, tracks, track_genres, track_artists };
+  return { artists, artist_genres, tracks, track_genres, track_artists, track_features };
 }
 
 function processTracksData(track_data: TrackObject[]): {
@@ -210,6 +237,30 @@ function processArtistsData(artist_data: ArtistObject[]): schema.InsertArtist[] 
     processed_artists.push(artist_obj);
   }
   return processed_artists;
+}
+
+function processTrackFeatData(track_features_data: AudioFeatures[]): schema.InsertTrackFeatures[] {
+  let processed_track_features: schema.InsertTrackFeatures[] = [];
+  for (let track_features of track_features_data) {
+    if (!track_features.track_id) continue;
+    processed_track_features.push({
+      trackId: track_features.track_id,
+      duration: track_features.duration_ms || 0,
+      acousticness: track_features.acousticness || 0,
+      danceability: track_features.danceability || 0,
+      instrumentalness: track_features.instrumentalness || 0,
+      liveness: track_features.liveness || 0,
+      loudness: track_features.loudness || 0,
+      speechiness: track_features.speechiness || 0,
+      energy: track_features.energy || 0,
+      valence: track_features.valence || 0,
+      key: track_features.key || 0,
+      mode: track_features.mode || 0,
+      tempo: track_features.tempo || 0,
+      timeSignature: track_features.time_signature || 0,
+    });
+  }
+  return processed_track_features;
 }
 
 function linkArtistGenres(artist_data: ArtistObject[]): schema.InsertArtistGenre[] {
