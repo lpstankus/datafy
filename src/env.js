@@ -8,13 +8,8 @@ export const env = createEnv({
    */
   server: {
     POSTGRES_URL: z.string().url(),
-    NODE_ENV: z
-      .enum(["development", "test", "production"])
-      .default("development"),
-    NEXTAUTH_SECRET:
-      process.env.NODE_ENV === "production"
-        ? z.string()
-        : z.string().optional(),
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    NEXTAUTH_SECRET: process.env.NODE_ENV === "production" ? z.string() : z.string().optional(),
     NEXTAUTH_URL: z.preprocess(
       // This makes Vercel deployments not fail if you don't set NEXTAUTH_URL
       // Since NextAuth.js automatically uses the VERCEL_URL if present.
@@ -24,6 +19,8 @@ export const env = createEnv({
     ),
     SPOTIFY_CLIENT_ID: z.string(),
     SPOTIFY_CLIENT_SECRET: z.string(),
+    TRACKED_USERS_IDS: z.string(),
+    CRON_SECRET: z.string(),
   },
 
   /**
@@ -46,6 +43,8 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET,
+    TRACKED_USERS_IDS: process.env.TRACKED_USERS_IDS,
+    CRON_SECRET: process.env.CRON_SECRET,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
