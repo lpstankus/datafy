@@ -76,7 +76,7 @@ export async function refreshAccount(account: Account): Promise<RefreshedAccount
     return null;
   }
 
-  if (!account.access_token || !account.expires_at || account.expires_at * 1000 < Date.now()) {
+  if (!account.access_token || (account.expires_at || 0) * 1000 < Date.now()) {
     try {
       let authString = `${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`;
       let basicAuth = Buffer.from(authString).toString("base64");
@@ -103,10 +103,13 @@ export async function refreshAccount(account: Account): Promise<RefreshedAccount
         .set({
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
-          expires_at: Math.floor(Date.now() / 1000 + tokens.expires_in),
+          expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
         })
         .where(
-          and(eq(accounts.provider, "spotify"), eq(accounts.userId, account.providerAccountId)),
+          and(
+            eq(accounts.provider, "spotify"),
+            eq(accounts.providerAccountId, account.providerAccountId),
+          ),
         );
 
       account.access_token = tokens.access_token;
