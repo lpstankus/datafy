@@ -8,6 +8,7 @@ import { TrackObject, ArtistObject, AudioFeatures } from "./extern_types";
 import * as spotify from "./extern_api";
 
 const ITEM_TARG = 10;
+const SNAPSHOT_LIST_TARG = 100;
 
 type ArtistData = {
   artists: schema.InsertArtist[];
@@ -30,7 +31,7 @@ export const spotifyRouter = createTRPCRouter({
     .input(z.object({ accessToken: z.string() }))
     .mutation(async ({ ctx, input }) => {
       let { accessToken } = input;
-      let data = await fetchTopTracks(accessToken);
+      let data = await fetchTopTracks(accessToken, ITEM_TARG);
       saveTrackData(ctx.db, data);
     }),
 
@@ -38,7 +39,7 @@ export const spotifyRouter = createTRPCRouter({
     .input(z.object({ accessToken: z.string() }))
     .mutation(async ({ ctx, input }) => {
       let { accessToken } = input;
-      let data = await fetchTopArtists(accessToken);
+      let data = await fetchTopArtists(accessToken, ITEM_TARG);
       saveArtistData(ctx.db, data);
     }),
 
@@ -62,10 +63,10 @@ export const spotifyRouter = createTRPCRouter({
         return;
       }
 
-      let track_data = await fetchTopTracks(refreshedAccount.accessToken);
+      let track_data = await fetchTopTracks(refreshedAccount.accessToken, SNAPSHOT_LIST_TARG);
       await saveTrackData(ctx.db, track_data);
 
-      let artist_data = await fetchTopArtists(refreshedAccount.accessToken);
+      let artist_data = await fetchTopArtists(refreshedAccount.accessToken, SNAPSHOT_LIST_TARG);
       await saveArtistData(ctx.db, artist_data);
 
       saveTrackList(ctx.db, userId, track_data.tracks);
@@ -156,15 +157,15 @@ async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackDat
   await db.insert(schema.artistGenres).values(data.artist_genres).onConflictDoNothing();
 }
 
-async function fetchTopArtists(accessToken: string): Promise<ArtistData> {
-  let artist_data = await spotify.fetchTopArtists(accessToken, ITEM_TARG);
+async function fetchTopArtists(accessToken: string, item_targ: number): Promise<ArtistData> {
+  let artist_data = await spotify.fetchTopArtists(accessToken, item_targ);
   let artists = processArtistsData(artist_data);
   let artist_genres = linkArtistGenres(artist_data);
   return { artists, artist_genres };
 }
 
-async function fetchTopTracks(accessToken: string): Promise<TrackData> {
-  let track_data = await spotify.fetchTopTracks(accessToken, ITEM_TARG);
+async function fetchTopTracks(accessToken: string, item_targ: number): Promise<TrackData> {
+  let track_data = await spotify.fetchTopTracks(accessToken, item_targ);
   let { tracks, track_artists, albums, album_artists } = processTracksData(track_data);
 
   let track_ids = tracks.reduce<string[]>((acc, track) => acc.concat([track.trackId]), []);
