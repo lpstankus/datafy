@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sql, and, eq, max, SQL } from "drizzle-orm";
+import { sql, and, eq, max } from "drizzle-orm";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { refreshAccount } from "~/server/auth";
@@ -360,7 +360,8 @@ async function saveTrackList(
 ) {
   let generation_query = await db
     .select({ value: max(schema.trackLists.generation) })
-    .from(schema.trackLists);
+    .from(schema.trackLists)
+    .where(eq(schema.trackLists.userId, userId));
   let generation = (generation_query[0]?.value || 0) + 1;
 
   let trackList = tracks.reduce<schema.InsertTrackList[]>((acc, track) => {
@@ -384,7 +385,8 @@ async function saveArtistList(
 ) {
   let generation_query = await db
     .select({ value: max(schema.artistLists.generation) })
-    .from(schema.artistLists);
+    .from(schema.artistLists)
+    .where(eq(schema.artistLists.userId, userId));
   let generation = (generation_query[0]?.value || 0) + 1;
 
   let artistList = artists.reduce<schema.InsertArtistList[]>((acc, artist) => {
