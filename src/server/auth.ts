@@ -72,11 +72,12 @@ export type RefreshedAccount = {
 
 export async function refreshAccount(account: Account): Promise<RefreshedAccount | null> {
   if (!account.refresh_token) {
-    console.error(`Invalid spotify account (no refresh token): ${account}`);
+    console.error("Invalid spotify account (no refresh token):", account);
     return null;
   }
 
   if (!account.access_token || (account.expires_at || 0) * 1000 < Date.now()) {
+    console.log("Refreshing tokens...");
     try {
       let authString = `${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`;
       let basicAuth = Buffer.from(authString).toString("base64");
@@ -98,22 +99,20 @@ export async function refreshAccount(account: Account): Promise<RefreshedAccount
       let tokens = await response.json();
       if (!response.ok) throw tokens;
 
+      account.access_token = tokens.access_token;
+      if (tokens.refresh_token) account.refresh_token = tokens.refresh_token;
+      account.expires_at = Math.floor(Date.now() / 1000) + tokens.expires_in;
+
       await db
         .update(accounts)
-        .set({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: Math.floor(Date.now() / 1000) + tokens.expires_in,
-        })
+        .set(account)
         .where(
           and(
             eq(accounts.provider, "spotify"),
             eq(accounts.providerAccountId, account.providerAccountId),
           ),
         );
-
-      account.access_token = tokens.access_token;
-      if (tokens.refresh_token) account.refresh_token = tokens.refresh_token;
+      console.log("Successfully refreshed tokens");
     } catch (error) {
       console.error(`Error refreshing access token: ${error}`);
       return null;
