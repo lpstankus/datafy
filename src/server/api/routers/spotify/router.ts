@@ -51,15 +51,16 @@ export const spotifyRouter = createTRPCRouter({
       const account = await ctx.db.query.accounts.findFirst({
         where: and(eq(schema.accounts.provider, "spotify"), eq(schema.accounts.userId, userId)),
       });
+      console.log(`Snapshot(${userId}): starting snapshot`);
 
       if (!account) {
-        console.error(`Failed to find spotify account for user: ${userId}`);
+        console.error(`Snapshot(${userId}): failed to find spotify account for user`);
         return;
       }
 
       let refreshedAccount = await refreshAccount(account);
       if (!refreshedAccount) {
-        console.error(`Failed to refresh spotify account for user: ${userId})`);
+        console.error(`Snapshot(${userId}): failed to refresh spotify tokens`);
         return;
       }
 
@@ -70,7 +71,12 @@ export const spotifyRouter = createTRPCRouter({
       await saveArtistData(ctx.db, artist_data);
 
       saveTrackList(ctx.db, userId, track_data.tracks);
+      console.log(`Snapshot(${userId}): successfully saved tracks list`);
+
       saveArtistList(ctx.db, userId, artist_data.artists);
+      console.log(`Snapshot(${userId}): successfully saved artists list`);
+
+      console.log(`Snapshot(${userId}): snapshot completed successfully`);
     }),
 });
 
