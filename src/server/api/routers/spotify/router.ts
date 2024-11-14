@@ -65,17 +65,20 @@ export const spotifyRouter = createTRPCRouter({
       }
 
       let track_data = await fetchTopTracks(refreshedAccount.accessToken, SNAPSHOT_LIST_TARG);
-      await saveTrackData(ctx.db, track_data);
+      let track_save = saveTrackData(ctx.db, track_data);
 
       let artist_data = await fetchTopArtists(refreshedAccount.accessToken, SNAPSHOT_LIST_TARG);
-      await saveArtistData(ctx.db, artist_data);
+      let artist_save = saveArtistData(ctx.db, artist_data);
 
-      saveTrackList(ctx.db, userId, track_data.tracks);
+      Promise.all([track_save, artist_save]);
+
+      let tracklist_save = saveTrackList(ctx.db, userId, track_data.tracks);
       console.log(`Snapshot(${userId}): successfully saved tracks list`);
 
-      saveArtistList(ctx.db, userId, artist_data.artists);
+      let artistlist_save = saveArtistList(ctx.db, userId, artist_data.artists);
       console.log(`Snapshot(${userId}): successfully saved artists list`);
 
+      await Promise.all([tracklist_save, artistlist_save]);
       console.log(`Snapshot(${userId}): snapshot completed successfully`);
     }),
 });
@@ -96,71 +99,80 @@ async function saveArtistData(db: VercelPgDatabase<typeof schema>, data: ArtistD
 }
 
 async function saveTrackData(db: VercelPgDatabase<typeof schema>, data: TrackData) {
-  await db
-    .insert(schema.albums)
-    .values(data.albums)
-    .onConflictDoUpdate({
-      target: schema.albums.albumId,
-      set: {
-        name: sql`excluded."name"`,
-        type: sql`excluded."type"`,
-        totalTracks: sql`excluded."totalTracks"`,
-        releaseYear: sql`excluded."releaseYear"`,
-        imageURL: sql`excluded."imageURL"`,
-      },
-    });
+  let promises: Promise<any>[] = [];
+  promises.push(
+    db
+      .insert(schema.albums)
+      .values(data.albums)
+      .onConflictDoUpdate({
+        target: schema.albums.albumId,
+        set: {
+          name: sql`excluded."name"`,
+          type: sql`excluded."type"`,
+          totalTracks: sql`excluded."totalTracks"`,
+          releaseYear: sql`excluded."releaseYear"`,
+          imageURL: sql`excluded."imageURL"`,
+        },
+      }),
+  );
 
-  await db
-    .insert(schema.tracks)
-    .values(data.tracks)
-    .onConflictDoUpdate({
-      target: schema.tracks.trackId,
-      set: {
-        trackName: sql`excluded."trackName"`,
-        explicit: sql`excluded."explicit"`,
-        popularity: sql`excluded."popularity"`,
-        albumId: sql`excluded."albumId"`,
-      },
-    });
+  promises.push(
+    db
+      .insert(schema.tracks)
+      .values(data.tracks)
+      .onConflictDoUpdate({
+        target: schema.tracks.trackId,
+        set: {
+          trackName: sql`excluded."trackName"`,
+          explicit: sql`excluded."explicit"`,
+          popularity: sql`excluded."popularity"`,
+          albumId: sql`excluded."albumId"`,
+        },
+      }),
+  );
 
-  await db
-    .insert(schema.artists)
-    .values(data.artists)
-    .onConflictDoUpdate({
-      target: schema.artists.artistId,
-      set: {
-        name: sql`excluded."name"`,
-        popularity: sql`excluded."popularity"`,
-        followers: sql`excluded."followers"`,
-      },
-    });
+  promises.push(
+    db
+      .insert(schema.artists)
+      .values(data.artists)
+      .onConflictDoUpdate({
+        target: schema.artists.artistId,
+        set: {
+          name: sql`excluded."name"`,
+          popularity: sql`excluded."popularity"`,
+          followers: sql`excluded."followers"`,
+        },
+      }),
+  );
 
-  await db
-    .insert(schema.tracksFeatures)
-    .values(data.track_features)
-    .onConflictDoUpdate({
-      target: schema.tracksFeatures.trackId,
-      set: {
-        duration: sql`excluded."duration"`,
-        acousticness: sql`excluded."acousticness"`,
-        danceability: sql`excluded."danceability"`,
-        instrumentalness: sql`excluded."instrumentalness"`,
-        liveness: sql`excluded."liveness"`,
-        loudness: sql`excluded."loudness"`,
-        speechiness: sql`excluded."speechiness"`,
-        energy: sql`excluded."energy"`,
-        valence: sql`excluded."valence"`,
-        key: sql`excluded."key"`,
-        mode: sql`excluded."mode"`,
-        tempo: sql`excluded."tempo"`,
-        timeSignature: sql`excluded."timeSignature"`,
-      },
-    });
+  promises.push(
+    db
+      .insert(schema.tracksFeatures)
+      .values(data.track_features)
+      .onConflictDoUpdate({
+        target: schema.tracksFeatures.trackId,
+        set: {
+          duration: sql`excluded."duration"`,
+          acousticness: sql`excluded."acousticness"`,
+          danceability: sql`excluded."danceability"`,
+          instrumentalness: sql`excluded."instrumentalness"`,
+          liveness: sql`excluded."liveness"`,
+          loudness: sql`excluded."loudness"`,
+          speechiness: sql`excluded."speechiness"`,
+          energy: sql`excluded."energy"`,
+          valence: sql`excluded."valence"`,
+          key: sql`excluded."key"`,
+          mode: sql`excluded."mode"`,
+          tempo: sql`excluded."tempo"`,
+          timeSignature: sql`excluded."timeSignature"`,
+        },
+      }),
+  );
 
-  await db.insert(schema.albumArtists).values(data.album_artists).onConflictDoNothing();
-  await db.insert(schema.trackArtists).values(data.track_artists).onConflictDoNothing();
-  await db.insert(schema.trackGenres).values(data.track_genres).onConflictDoNothing();
-  await db.insert(schema.artistGenres).values(data.artist_genres).onConflictDoNothing();
+  promises.push(db.insert(schema.albumArtists).values(data.album_artists).onConflictDoNothing());
+  promises.push(db.insert(schema.trackArtists).values(data.track_artists).onConflictDoNothing());
+  promises.push(db.insert(schema.trackGenres).values(data.track_genres).onConflictDoNothing());
+  promises.push(db.insert(schema.artistGenres).values(data.artist_genres).onConflictDoNothing());
 }
 
 async function fetchTopArtists(accessToken: string, item_targ: number): Promise<ArtistData> {
