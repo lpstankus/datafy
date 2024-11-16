@@ -27,22 +27,6 @@ type TrackData = {
 };
 
 export const spotifyRouter = createTRPCRouter({
-  fetchTopTracks: publicProcedure
-    .input(z.object({ accessToken: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      let { accessToken } = input;
-      let data = await fetchTopTracks(accessToken, ITEM_TARG);
-      saveTrackData(ctx.db, data);
-    }),
-
-  fetchTopArtists: publicProcedure
-    .input(z.object({ accessToken: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      let { accessToken } = input;
-      let data = await fetchTopArtists(accessToken, ITEM_TARG);
-      saveArtistData(ctx.db, data);
-    }),
-
   // Fetch and save User's short term listening habits from Spotify
   snapshotUser: publicProcedure
     .input(z.object({ userId: z.string() }))
