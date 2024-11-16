@@ -25,7 +25,7 @@ export default async function Home() {
           </div>
         </div>
 
-        <CrudShowcase/>
+        <CrudShowcase />
       </div>
     </main>
   );
@@ -34,18 +34,16 @@ export default async function Home() {
 async function CrudShowcase() {
   const session = await getServerAuthSession();
   let accessToken = session?.user.spotify.accessToken;
-  if (!accessToken) return (
-    <div>
-      <p className="truncate">User not logged in...</p>
-    </div>
-  )
-
-  await api.spotify.fetchTopTracks({ accessToken })
-  return (
-    <div className="w-full max-w-md">
+  if (!accessToken)
+    return (
       <div>
-        <p>See console log</p>
+        <p className="truncate">User not logged in...</p>
       </div>
+    );
+
+  return (
+    <div>
+      <p className="truncate">User logged in!!</p>
     </div>
   );
 }
