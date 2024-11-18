@@ -144,7 +144,6 @@ export const artistLists = createTable(
     artistId: varchar("artistId", { length: 255 })
       .notNull()
       .references(() => artists.artistId),
-    generation: integer("generation").notNull(),
     ranking: integer("ranking").notNull(),
     timestamp: date("timestamp").notNull(),
   },
@@ -257,7 +256,6 @@ export const trackLists = createTable(
     trackId: varchar("trackId", { length: 255 })
       .notNull()
       .references(() => tracks.trackId),
-    generation: integer("generation").notNull(),
     ranking: integer("ranking").notNull(),
     timestamp: date("timestamp").notNull(),
   },
