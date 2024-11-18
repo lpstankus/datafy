@@ -112,7 +112,7 @@ export const artistsRelations = relations(artists, ({ many }) => ({
   tracks: many(trackArtists),
   albums: many(albumArtists),
   genres: many(artistGenres),
-  artistLists: many(artistLists),
+  artistRankings: many(artistRankings),
 }));
 
 export const artistGenres = createTable(
@@ -135,8 +135,8 @@ export const artistGenresRelations = relations(artistGenres, ({ one }) => ({
   artist: one(artists, { fields: [artistGenres.artistId], references: [artists.artistId] }),
 }));
 
-export const artistLists = createTable(
-  "artistList",
+export const artistRankings = createTable(
+  "artistRanking",
   {
     userId: varchar("userId", { length: 255 })
       .notNull()
@@ -147,17 +147,17 @@ export const artistLists = createTable(
     ranking: integer("ranking").notNull(),
     timestamp: date("timestamp").notNull(),
   },
-  (artistList) => ({
+  (artistRanking) => ({
     compoundKey: primaryKey({
-      columns: [artistList.userId, artistList.generation, artistList.ranking],
+      columns: [artistRanking.userId, artistRanking.timestamp, artistRanking.ranking],
     }),
   }),
 );
-export type InsertArtistList = typeof artistLists.$inferInsert;
+export type InsertArtistRanking = typeof artistRankings.$inferInsert;
 
-export const artistListRelations = relations(artistLists, ({ one }) => ({
-  user: one(users, { fields: [artistLists.userId], references: [users.id] }),
-  artist: one(artists, { fields: [artistLists.artistId], references: [artists.artistId] }),
+export const artistRankingRelations = relations(artistRankings, ({ one }) => ({
+  user: one(users, { fields: [artistRankings.userId], references: [users.id] }),
+  artist: one(artists, { fields: [artistRankings.artistId], references: [artists.artistId] }),
 }));
 
 // ----- Track stuff -----
@@ -174,7 +174,7 @@ export type InsertTrack = typeof tracks.$inferInsert;
 export const tracksRelations = relations(tracks, ({ many, one }) => ({
   artists: many(trackArtists),
   genres: many(trackGenres),
-  trackLists: many(trackLists),
+  trackRankings: many(trackRankings),
   features: one(tracksFeatures, { fields: [tracks.trackId], references: [tracksFeatures.trackId] }),
   album: one(albums, { fields: [tracks.albumId], references: [albums.albumId] }),
 }));
@@ -247,8 +247,8 @@ export const trackFeaturesRelations = relations(tracksFeatures, ({ one }) => ({
   track: one(tracks, { fields: [tracksFeatures.trackId], references: [tracks.trackId] }),
 }));
 
-export const trackLists = createTable(
-  "trackList",
+export const trackRankings = createTable(
+  "trackRanking",
   {
     userId: varchar("userId", { length: 255 })
       .notNull()
@@ -259,27 +259,27 @@ export const trackLists = createTable(
     ranking: integer("ranking").notNull(),
     timestamp: date("timestamp").notNull(),
   },
-  (trackList) => ({
+  (trackRanking) => ({
     compoundKey: primaryKey({
-      columns: [trackList.userId, trackList.generation, trackList.ranking],
+      columns: [trackRanking.userId, trackRanking.timestamp, trackRanking.ranking],
     }),
   }),
 );
-export type InsertTrackList = typeof trackLists.$inferInsert;
+export type InsertTrackRanking = typeof trackRankings.$inferInsert;
 
-export const trackListRelations = relations(trackLists, ({ one }) => ({
-  user: one(users, { fields: [trackLists.userId], references: [users.id] }),
-  track: one(tracks, { fields: [trackLists.trackId], references: [tracks.trackId] }),
+export const trackRankingRelations = relations(trackRankings, ({ one }) => ({
+  user: one(users, { fields: [trackRankings.userId], references: [users.id] }),
+  track: one(tracks, { fields: [trackRankings.trackId], references: [tracks.trackId] }),
 }));
 
 // ----- Album stuff -----
 
 export const albums = createTable("album", {
   albumId: varchar("albumId", { length: 255 }).notNull().primaryKey(), // same as in spotify
-  name: varchar("name", { length: 255 }),
-  type: varchar("type", { length: 255 }),
-  totalTracks: integer("totalTracks"),
-  releaseYear: integer("releaseYear"),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 255 }).notNull(),
+  totalTracks: integer("totalTracks").notNull(),
+  releaseYear: integer("releaseYear").notNull(),
   imageURL: varchar("imageURL", { length: 255 }),
 });
 export type InsertAlbum = typeof albums.$inferInsert;
